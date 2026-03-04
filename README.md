@@ -1,6 +1,6 @@
 # mlx-vis
 
-Pure MLX implementations of UMAP, t-SNE, PaCMAP, and NNDescent for Apple Silicon. Metal GPU acceleration for both computation and video rendering. No scipy, no sklearn.
+Pure MLX implementations of UMAP, t-SNE, PaCMAP, and NNDescent for Apple Silicon. Metal GPU acceleration for both computation and video rendering. No scipy, no sklearn, no matplotlib.
 
 ![Fashion-MNIST 70K, 500 iterations on M3 Ultra](comparison.png)
 
