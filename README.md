@@ -47,7 +47,7 @@ Y = DREAMS(n_components=2, lam=0.15).fit_transform(X)
 indices, distances = NNDescent(k=15).build(X)
 ```
 
-Submodule imports also work:
+Per-module imports also work:
 
 ```python
 from mlx_vis.umap import UMAP
