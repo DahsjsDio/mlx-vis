@@ -238,7 +238,7 @@ def animate(snapshots, labels=None, timestamps=None, method_name="",
 
 def animate_gpu(snapshots, labels=None, timestamps=None, method_name="",
                 dataset_name="", fps=120, theme="dark", colors=None,
-                point_size=1.5, alpha=0.6, init_hold=0.5, end_hold=2.0,
+                point_size=2, alpha=0.6, init_hold=0.5, end_hold=2.0,
                 save="animation.mp4", width=1000, height=1000, bitrate=8000):
     """GPU-accelerated animation using MLX Metal + ffmpeg pipe.
 

@@ -1,0 +1,326 @@
+"""CNE (Contrastive Neighbor Embedding) in pure MLX for Apple Silicon.
+
+Reference: Damrich et al., "From t-SNE to UMAP with contrastive learning",
+ICLR 2023. Unifies t-SNE and UMAP through contrastive losses on the
+neighbor graph. InfoNCE loss gives t-SNE-like results, NEG loss gives
+UMAP-like results.
+"""
+
+import time
+
+import mlx.core as mx
+import numpy as np
+
+from mlx_vis._nndescent.nndescent import NNDescent
+
+
+class CNE:
+    """Contrastive Neighbor Embedding using MLX on Metal GPU.
+
+    Parameters
+    ----------
+    n_components : int
+        Dimension of the embedding (default 2).
+    n_neighbors : int
+        Number of nearest neighbors for graph construction (default 15).
+    n_negatives : int
+        Negative samples per positive edge (default 5).
+        More negatives produce more t-SNE-like separation.
+    loss : str
+        Contrastive loss: "infonce" (t-SNE-like, default), "nce", or "neg" (UMAP-like).
+    n_iter : int
+        Number of optimization iterations (default 500).
+    learning_rate : float
+        Adam learning rate (default 1.0).
+    batch_size : int or None
+        Edge mini-batch size per iteration. None = all edges (default).
+    pca_dim : int or None
+        PCA target dimension for high-dimensional input (default 50).
+    random_state : int or None
+        Random seed for reproducibility.
+    verbose : bool
+        Print progress information.
+    """
+
+    def __init__(
+        self,
+        n_components=2,
+        n_neighbors=15,
+        n_negatives=5,
+        loss="infonce",
+        n_iter=500,
+        learning_rate=1.0,
+        batch_size=None,
+        pca_dim=50,
+        random_state=None,
+        verbose=False,
+    ):
+        if loss not in ("infonce", "nce", "neg"):
+            raise ValueError(f"Unknown loss: {loss!r}. Use 'infonce', 'nce', or 'neg'.")
+        self.n_components = n_components
+        self.n_neighbors = n_neighbors
+        self.n_negatives = n_negatives
+        self.loss = loss
+        self.n_iter = n_iter
+        self.learning_rate = learning_rate
+        self.batch_size = batch_size
+        self.pca_dim = pca_dim
+        self.random_state = random_state
+        self.verbose = verbose
+        self.embedding_ = None
+
+    def fit_transform(self, X, epoch_callback=None):
+        """Compute CNE embedding.
+
+        Args:
+            X: Input data array of shape (n_samples, n_features).
+            epoch_callback: Optional callback(epoch, Y_numpy) for animation.
+
+        Returns:
+            np.ndarray of shape (n_samples, n_components).
+        """
+        t0 = time.time()
+
+        if isinstance(X, mx.array):
+            X = np.array(X)
+        X = np.asarray(X, dtype=np.float32)
+        n, dim = X.shape
+
+        if self.verbose:
+            print(f"CNE: {n} points, {dim} dims, loss={self.loss}, "
+                  f"k={self.n_neighbors}, m={self.n_negatives}")
+
+        # PCA preprocessing
+        if self.pca_dim is not None and dim > self.pca_dim:
+            X = self._pca_reduce(X, n, dim)
+            dim = X.shape[1]
+
+        # k-NN via NNDescent
+        if self.verbose:
+            print("Computing k-NN...")
+        t_knn = time.time()
+        nn = NNDescent(
+            k=self.n_neighbors,
+            verbose=self.verbose,
+            random_state=self.random_state if self.random_state is not None else 42,
+        )
+        knn_indices, _ = nn.build(X)
+        if self.verbose:
+            print(f"k-NN done in {time.time() - t_knn:.1f}s")
+
+        # Build symmetrized edge list
+        edges = self._build_edges(knn_indices, n)
+        n_edges = edges.shape[0]
+        if self.verbose:
+            print(f"Graph: {n_edges} edges (symmetrized)")
+
+        # PCA initialization
+        Y = self._pca_init(X, n)
+
+        # Determine batch size
+        batch_size = self.batch_size
+        if batch_size is None or batch_size >= n_edges:
+            batch_size = n_edges
+
+        # Convert to MLX
+        edges_mx = mx.array(edges)
+        if self.random_state is not None:
+            mx.random.seed(self.random_state)
+
+        if epoch_callback is not None:
+            epoch_callback(0, np.array(Y))
+
+        # Optimize
+        Y = self._optimize(Y, edges_mx, n, n_edges, batch_size, epoch_callback)
+
+        mx.eval(Y)
+        self.embedding_ = np.array(Y)
+
+        if self.verbose:
+            print(f"CNE done in {time.time() - t0:.1f}s")
+
+        return self.embedding_
+
+    def _pca_reduce(self, X, n, dim):
+        """Reduce dimensionality via PCA."""
+        if self.verbose:
+            print(f"PCA: {dim} -> {self.pca_dim} dims...")
+        X_mx = mx.array(X)
+        mean = mx.mean(X_mx, axis=0)
+        X_centered = X_mx - mean
+        cov = (X_centered.T @ X_centered) / (n - 1)
+        mx.eval(cov)
+        eigvals, eigvecs = mx.linalg.eigh(cov, stream=mx.cpu)
+        mx.eval(eigvals, eigvecs)
+        proj = eigvecs[:, -self.pca_dim:][:, ::-1]
+        X_pca = X_centered @ proj
+        mx.eval(X_pca)
+        if self.verbose:
+            total_var = mx.sum(eigvals).item()
+            retained_var = mx.sum(eigvals[-self.pca_dim:]).item()
+            print(f"Variance retained: {retained_var / total_var * 100:.1f}%")
+        return np.array(X_pca)
+
+    def _pca_init(self, X, n):
+        """Initialize embedding via PCA (scaled by 0.01)."""
+        X_mx = mx.array(X)
+        mean = mx.mean(X_mx, axis=0)
+        X_centered = X_mx - mean
+        cov = (X_centered.T @ X_centered) / (n - 1)
+        mx.eval(cov)
+        eigvals, eigvecs = mx.linalg.eigh(cov, stream=mx.cpu)
+        mx.eval(eigvals, eigvecs)
+        proj = eigvecs[:, -self.n_components:][:, ::-1]
+        Y = (X_centered @ proj) * 0.01
+        mx.eval(Y)
+        if self.verbose:
+            print("PCA initialization done")
+        return Y
+
+    @staticmethod
+    def _build_edges(knn_indices, n):
+        """Build symmetrized edge list from k-NN indices.
+
+        For each directed edge i->j in the k-NN graph, add both (i,j) and (j,i),
+        then deduplicate.
+
+        Returns:
+            np.ndarray of shape (E, 2), dtype int32.
+        """
+        k = knn_indices.shape[1]
+        src = np.repeat(np.arange(n, dtype=np.int32), k)
+        dst = knn_indices.ravel().astype(np.int32)
+
+        # Stack both directions
+        all_src = np.concatenate([src, dst])
+        all_dst = np.concatenate([dst, src])
+
+        # Deduplicate via canonical edge encoding
+        keys = all_src.astype(np.int64) * n + all_dst.astype(np.int64)
+        _, unique_idx = np.unique(keys, return_index=True)
+        edges = np.stack([all_src[unique_idx], all_dst[unique_idx]], axis=1)
+
+        # Remove self-loops
+        mask = edges[:, 0] != edges[:, 1]
+        return edges[mask]
+
+    def _optimize(self, Y, edges_mx, n, n_edges, batch_size, epoch_callback):
+        """Adam optimization with contrastive loss."""
+        m = mx.zeros_like(Y)
+        v = mx.zeros_like(Y)
+        beta1, beta2, eps = 0.9, 0.999, 1e-8
+        lr = self.learning_rate
+        n_neg = self.n_negatives
+        d = self.n_components
+
+        if self.verbose:
+            print("Starting optimization...")
+
+        for itr in range(1, self.n_iter + 1):
+            # Mini-batch edge sampling
+            if batch_size < n_edges:
+                idx = mx.random.randint(0, n_edges, (batch_size,))
+                batch_edges = edges_mx[idx]
+            else:
+                batch_edges = edges_mx
+
+            E = batch_edges.shape[0]
+            ei = batch_edges[:, 0]  # (E,)
+            ej = batch_edges[:, 1]  # (E,)
+
+            # Sample negatives uniformly
+            neg_indices = mx.random.randint(0, n, (E, n_neg))  # (E, m)
+
+            # Gather embeddings
+            yi = Y[ei]               # (E, d)
+            yj = Y[ej]               # (E, d)
+            yk = Y[neg_indices]       # (E, m, d)
+
+            # Cauchy similarities
+            diff_pos = yi - yj                                      # (E, d)
+            d_pos = 1.0 + mx.sum(diff_pos * diff_pos, axis=-1)      # (E,)
+            s_pos = 1.0 / d_pos                                     # (E,)
+
+            diff_neg = yi[:, None, :] - yk                           # (E, m, d)
+            d_neg = 1.0 + mx.sum(diff_neg * diff_neg, axis=-1)      # (E, m)
+            s_neg = 1.0 / d_neg                                     # (E, m)
+
+            # Compute gradients based on loss type
+            grad = mx.zeros_like(Y)
+
+            if self.loss == "infonce":
+                # L = -log(s_pos / (s_pos + sum(s_neg)))
+                # dL/dyi = w_pos*2*s_pos*(yi-yj) - sum_k w_neg_k*2*s_neg_k*(yi-yk)
+                S_neg = mx.sum(s_neg, axis=1)          # (E,)
+                Z = s_pos + S_neg                       # (E,)
+                w_pos = 1.0 - s_pos / Z                 # (E,)
+                w_neg = s_neg / Z[:, None]              # (E, m)
+
+                # Attractive gradient: points away from yj (steepest loss increase)
+                g_attr = w_pos[:, None] * 2.0 * s_pos[:, None] * diff_pos   # (E, d)
+                # Repulsive gradient: points toward yk (steepest loss increase)
+                g_rep = -mx.sum(
+                    w_neg[:, :, None] * 2.0 * s_neg[:, :, None] * diff_neg,
+                    axis=1,
+                )  # (E, d)
+
+            elif self.loss == "nce":
+                # L = -log(s/(s+c)) - sum log(c/(s_k+c)), c = 1/m
+                inv_m = 1.0 / n_neg
+                # dL/dyi_pos = 2*c*s/(s+c) * (yi-yj)
+                g_attr = (2.0 * inv_m * s_pos / (s_pos + inv_m))[:, None] * diff_pos  # (E, d)
+                # dL/dyi_neg = sum_k -2*s_k^2/(s_k+c) * (yi-yk)
+                g_rep = mx.sum(
+                    -2.0 * (s_neg * s_neg / (s_neg + inv_m))[:, :, None] * diff_neg,
+                    axis=1,
+                )  # (E, d)
+
+            else:  # neg
+                # L = -log(s_pos) - sum log(1 - s_neg_k)
+                # dL/dyi_pos = 2*s*(yi-yj)
+                g_attr = (2.0 * s_pos)[:, None] * diff_pos  # (E, d)
+                # dL/dyi_neg = sum_k -2*s_k^2/(1-s_k) * (yi-yk)
+                one_minus_s = mx.maximum(1.0 - s_neg, 1e-8)  # (E, m)
+                w_neg = s_neg * s_neg / one_minus_s  # (E, m)
+                g_rep = mx.sum(
+                    -2.0 * w_neg[:, :, None] * diff_neg,
+                    axis=1,
+                )  # (E, d)
+
+            grad_per_edge = g_attr + g_rep  # (E, d)
+
+            # Scatter-add: dL/dyi for source nodes
+            grad = grad.at[ei].add(grad_per_edge)
+            # dL/dyj = -g_attr for all losses (only pos term depends on yj)
+            grad = grad.at[ej].add(-g_attr)
+
+            # dL/dyk: per-negative gradient (only neg terms depend on yk)
+            if self.loss == "infonce":
+                neg_grad = w_neg[:, :, None] * 2.0 * s_neg[:, :, None] * diff_neg  # (E, m, d)
+            elif self.loss == "nce":
+                neg_grad = 2.0 * (s_neg * s_neg / (s_neg + inv_m))[:, :, None] * diff_neg  # (E, m, d)
+            else:  # neg
+                neg_grad = 2.0 * w_neg[:, :, None] * diff_neg  # (E, m, d)
+            grad = grad.at[neg_indices.reshape(-1)].add(neg_grad.reshape(-1, d))
+
+            # Scale gradient for mini-batch
+            if batch_size < n_edges:
+                grad = grad * (n_edges / batch_size)
+
+            # Adam update
+            m = beta1 * m + (1.0 - beta1) * grad
+            v = beta2 * v + (1.0 - beta2) * (grad * grad)
+            m_hat = m / (1.0 - beta1 ** itr)
+            v_hat = v / (1.0 - beta2 ** itr)
+            Y = Y - lr * m_hat / (mx.sqrt(v_hat) + eps)
+
+            if epoch_callback is not None:
+                mx.eval(Y, m, v)
+                epoch_callback(itr, np.array(Y))
+            elif itr % 10 == 0 or itr == self.n_iter:
+                mx.eval(Y, m, v)
+
+            if self.verbose and itr % 50 == 0:
+                print(f"Iteration {itr}/{self.n_iter}")
+
+        return Y

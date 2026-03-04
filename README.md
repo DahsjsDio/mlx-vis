@@ -1,8 +1,8 @@
 # mlx-vis
 
-Pure MLX implementations of UMAP, t-SNE, PaCMAP, TriMap, DREAMS, and NNDescent for Apple Silicon. Metal GPU acceleration for both computation and video rendering. No scipy, no sklearn, no matplotlib.
+Pure MLX implementations of UMAP, t-SNE, PaCMAP, TriMap, DREAMS, CNE, and NNDescent for Apple Silicon. Metal GPU acceleration for both computation and video rendering. No scipy, no sklearn, no matplotlib.
 
-![Fashion-MNIST 70K on M3 Ultra. Top: dark theme, bottom: light theme. Left to right: UMAP, t-SNE, PaCMAP, TriMap, DREAMS.](comparison.png)
+![Fashion-MNIST 70K on M3 Ultra. Left to right: UMAP, t-SNE, PaCMAP, TriMap, DREAMS, CNE.](comparison.png)
 
 ## Install
 
@@ -24,7 +24,7 @@ Requires `mlx >= 0.20.0` and `numpy >= 1.24.0`.
 
 ```python
 import numpy as np
-from mlx_vis import UMAP, TSNE, PaCMAP, TriMap, DREAMS, NNDescent
+from mlx_vis import UMAP, TSNE, PaCMAP, TriMap, DREAMS, CNE, NNDescent
 
 X = np.random.randn(10000, 128).astype(np.float32)
 
@@ -43,6 +43,9 @@ Y = TriMap(n_components=2, n_iters=400).fit_transform(X)
 # DREAMS (t-SNE + PCA regularization)
 Y = DREAMS(n_components=2, lam=0.15).fit_transform(X)
 
+# CNE (contrastive neighbor embedding, unifies t-SNE and UMAP)
+Y = CNE(n_components=2, loss="infonce").fit_transform(X)
+
 # NNDescent (approximate k-NN graph)
 indices, distances = NNDescent(k=15).build(X)
 ```
@@ -55,6 +58,7 @@ from mlx_vis.tsne import TSNE
 from mlx_vis.pacmap import PaCMAP
 from mlx_vis.trimap import TriMap
 from mlx_vis.dreams import DREAMS
+from mlx_vis.cne import CNE
 from mlx_vis.nndescent import NNDescent
 ```
 
@@ -67,6 +71,7 @@ from mlx_vis.nndescent import NNDescent
 | PaCMAP | `PaCMAP(n_components, n_neighbors, ...)` | `fit_transform(X)` | `np.ndarray (n, d)` |
 | TriMap | `TriMap(n_components, n_iters, ...)` | `fit_transform(X)` | `np.ndarray (n, d)` |
 | DREAMS | `DREAMS(n_components, lam, ...)` | `fit_transform(X)` | `np.ndarray (n, d)` |
+| CNE | `CNE(n_components, loss, n_negatives, ...)` | `fit_transform(X)` | `np.ndarray (n, d)` |
 | NNDescent | `NNDescent(k, n_iters, ...)` | `build(X)` | `(indices, distances)` |
 
 ## Visualization
@@ -88,36 +93,40 @@ scatter_gpu(Y, labels=labels, theme="dark", save="plot.png")
 
 ### Animation
 
-Video frames are rendered on GPU and piped to ffmpeg with `h264_videotoolbox` hardware encoding. **500 frames of 15K points in 1.5 seconds** on M3 Ultra.
+Video frames are rendered on GPU and piped to ffmpeg with `h264_videotoolbox` hardware encoding. **500 frames of 15K points in 1.9 seconds** on M3 Ultra.
 
 **UMAP:**
 
-https://github.com/user-attachments/assets/547b8ce2-17d4-4172-be59-ba83eafd1785
+https://github.com/user-attachments/assets/3252ec02-f032-4f82-b3e6-0205a9c6c91e
 
 **t-SNE:**
 
-https://github.com/user-attachments/assets/b8a4840b-7e71-4992-a26b-8332666af52a
+https://github.com/user-attachments/assets/695503b6-4acc-457f-afb6-a4cfabc6a036
 
 **PaCMAP:**
 
-https://github.com/user-attachments/assets/563c6a58-48e8-435d-b99d-5eafbb11be27
+https://github.com/user-attachments/assets/3d2201ae-13bc-4c06-9e60-e836ca71f21d
 
 **TriMap:**
 
-https://github.com/user-attachments/assets/eea51acf-b8da-4da1-9b23-6322bf300275
+https://github.com/user-attachments/assets/f982fcec-1dc1-468c-93eb-0fb646d6e260
 
 **DREAMS:**
 
-https://github.com/user-attachments/assets/e6a3bb52-95f4-46d0-9a8d-f7714e85a18f
+https://github.com/user-attachments/assets/0461359c-7e35-4458-9f06-8db8711f8ade
+
+**CNE:**
+
+https://github.com/user-attachments/assets/662597cb-b8d8-496f-9baa-ea3a19ae1bca
 
 **Benchmark on Fashion-MNIST 70,000 x 784, M3 Ultra:**
 
-| | UMAP | t-SNE | PaCMAP | TriMap | DREAMS |
-|---|---|---|---|---|---|
-| Iterations | 500 | 500 | 450 | 500 | 500 |
-| Embedding | 3.5s | 3.9s | 2.4s | 2.8s | 4.0s |
-| GPU render (800 frames) | 2.1s | 1.9s | 1.8s | 1.9s | 1.9s |
-| Total | 5.6s | 5.8s | 4.2s | 4.7s | 5.9s |
+| | UMAP | t-SNE | PaCMAP | TriMap | DREAMS | CNE |
+|---|---|---|---|---|---|---|
+| Iterations | 500 | 500 | 450 | 500 | 500 | 500 |
+| Embedding | 3.7s | 3.9s | 2.5s | 2.8s | 3.9s | 4.0s |
+| GPU render (800 frames) | 1.9s | 1.9s | 1.8s | 1.9s | 1.9s | 1.9s |
+| Total | 5.6s | 5.8s | 4.3s | 4.7s | 5.8s | 5.9s |
 
 ```python
 from mlx_vis import UMAP, animate_gpu
