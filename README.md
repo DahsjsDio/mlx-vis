@@ -82,6 +82,15 @@ scatter(Y, labels=labels, theme="dark", save="plot.png")
 |------|-------|--------|
 | <video src="https://github.com/hanxiao/mlx-vis/releases/download/v0.1.1/umap-animation.mp4" width="280" autoplay loop muted></video> | <video src="https://github.com/hanxiao/mlx-vis/releases/download/v0.1.1/tsne-animation.mp4" width="280" autoplay loop muted></video> | <video src="https://github.com/hanxiao/mlx-vis/releases/download/v0.1.1/pacmap-animation.mp4" width="280" autoplay loop muted></video> |
 
+**Benchmark on Fashion-MNIST 70,000 x 784, M3 Ultra:**
+
+| | UMAP | t-SNE | PaCMAP |
+|---|---|---|---|
+| Iterations | 500 | 500 | 450 |
+| Embedding | 3.5s | 3.9s | 2.4s |
+| GPU render (800 frames) | 1.4s | 1.3s | 1.2s |
+| Total | 4.9s | 5.2s | 3.6s |
+
 ```python
 from mlx_vis import UMAP, animate_gpu
 import numpy as np, time
