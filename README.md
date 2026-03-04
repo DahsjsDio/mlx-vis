@@ -80,15 +80,15 @@ scatter(Y, labels=labels, theme="dark", save="plot.png")
 
 **UMAP:**
 
-https://github.com/hanxiao/mlx-vis/releases/download/v0.1.1/umap-animation.mp4
+https://github.com/user-attachments/assets/d1f7e982-9eb2-4e89-b1f6-48e94473655a
 
 **t-SNE:**
 
-https://github.com/hanxiao/mlx-vis/releases/download/v0.1.1/tsne-animation.mp4
+https://github.com/user-attachments/assets/57f15a03-ee2f-4bdc-bc22-0b8042c3d1e7
 
 **PaCMAP:**
 
-https://github.com/hanxiao/mlx-vis/releases/download/v0.1.1/pacmap-animation.mp4
+https://github.com/user-attachments/assets/1c48749a-28f4-41b2-a70f-8cfdc25a03c4
 
 **Benchmark on Fashion-MNIST 70,000 x 784, M3 Ultra:**
 
