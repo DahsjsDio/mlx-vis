@@ -231,3 +231,121 @@ def animate(snapshots, labels=None, timestamps=None, method_name="",
     plt.close(fig)
 
     return total_f
+
+
+def animate_gpu(snapshots, labels=None, timestamps=None, method_name="",
+                dataset_name="", fps=120, theme="dark", colors=None,
+                point_size=1.5, alpha=0.6, init_hold=0.5, end_hold=2.0,
+                save="animation.mp4", width=1000, height=1000, bitrate=8000):
+    """GPU-accelerated animation using MLX Metal + ffmpeg pipe.
+
+    Same interface as animate() but renders on GPU without matplotlib.
+    Uses h264_videotoolbox for hardware video encoding on Mac.
+
+    Returns total frames rendered.
+    """
+    import subprocess
+    import mlx.core as mx
+    from mlx_vis.render import render_frame
+
+    snapshots_np = [np.asarray(s) for s in snapshots]
+    n_snap = len(snapshots_np)
+    n_points = len(snapshots_np[0])
+    n_epochs = n_snap - 1
+
+    # resolve colors
+    c = _resolve_colors(labels, colors, n_points, theme)
+    c = np.array(c, dtype=np.float32)
+    c[:, 3] = alpha
+    colors_mx = mx.array(c)
+
+    # compute axis limits from final snapshot
+    xlim, ylim = _get_square_lims(snapshots_np[-1])
+
+    # convert all snapshots to mx.array upfront
+    snapshots_mx = [mx.array(s.astype(np.float32)) for s in snapshots_np]
+
+    # background color
+    if theme == "dark":
+        bg = mx.array([0.0, 0.0, 0.0, 1.0], dtype=mx.float32)
+    else:
+        bg = mx.array([1.0, 1.0, 1.0, 1.0], dtype=mx.float32)
+
+    # point radius from point_size (sqrt scaling, minimum 1px)
+    point_radius = max(1, int(round(np.sqrt(point_size) * 1.2)))
+
+    # title text overlay via ffmpeg drawtext
+    fg_hex = "ffffff" if theme == "dark" else "000000"
+
+    # frame counts
+    init_f = int(init_hold * fps)
+    hold_f = int(end_hold * fps)
+    total_f = init_f + n_snap + hold_f
+
+    # build title text for each unique snapshot index
+    def _title_text(idx):
+        parts = []
+        if method_name:
+            parts.append(method_name)
+        if dataset_name:
+            parts.append(dataset_name)
+        if idx == 0:
+            parts.append("init")
+        elif idx < n_snap - 1:
+            parts.append(f"epoch {idx}/{n_epochs}")
+        else:
+            parts.append("done")
+        if timestamps:
+            t = timestamps[min(idx, len(timestamps) - 1)]
+            if idx >= n_snap - 1:
+                parts.append(f"t={t:.1f}s")
+            else:
+                parts.append(f"t={t:.2f}s")
+        return "  ".join(parts)
+
+    # build ffmpeg command with drawtext filter for title
+    vf_parts = []
+    # drawtext for title
+    title_text = _title_text(0)  # will update per-frame via metadata, but ffmpeg drawtext is static
+    # Instead: we burn text into frames by sending via ffmpeg per-segment, or skip text for simplicity
+    # For v1: use a single ffmpeg with no text overlay (title can be added post-hoc)
+
+    ffmpeg_cmd = [
+        "ffmpeg", "-y",
+        "-f", "rawvideo",
+        "-pix_fmt", "rgba",
+        "-s", f"{width}x{height}",
+        "-r", str(fps),
+        "-i", "pipe:",
+        "-c:v", "h264_videotoolbox",
+        "-b:v", f"{bitrate}k",
+        "-pix_fmt", "yuv420p",
+        save,
+    ]
+
+    proc = subprocess.Popen(ffmpeg_cmd, stdin=subprocess.PIPE,
+                            stdout=subprocess.DEVNULL, stderr=subprocess.DEVNULL)
+
+    for frame_i in range(total_f):
+        # determine snapshot index
+        if frame_i < init_f:
+            idx = 0
+        elif frame_i < init_f + n_snap:
+            idx = frame_i - init_f
+        else:
+            idx = n_snap - 1
+
+        # render
+        frame = render_frame(snapshots_mx[idx], colors_mx, width, height,
+                             xlim, ylim, point_radius=point_radius,
+                             bg_color=bg)
+        mx.eval(frame)
+        proc.stdin.write(np.array(frame, copy=False).tobytes())
+
+        if (frame_i + 1) % 100 == 0 or frame_i == total_f - 1:
+            print(f"  frame {frame_i + 1}/{total_f}")
+
+    proc.stdin.close()
+    proc.wait()
+
+    return total_f

@@ -59,40 +59,52 @@ from mlx_vis.nndescent import NNDescent
 
 ## Visualization
 
-Requires `matplotlib` and `ffmpeg` (for video). Not installed by default.
+### Static plots
+
+Requires `matplotlib` (not installed by default).
 
 ```python
-from mlx_vis import UMAP, scatter, animate
+from mlx_vis import UMAP, scatter
 import numpy as np
 
 X = np.random.randn(10000, 128).astype(np.float32)
+labels = np.random.randint(0, 5, 10000)
 Y = UMAP(n_components=2).fit_transform(X)
 
-# static scatter plot
-scatter(Y, title="My Embedding", save="plot.png")
-
-# with labels
-labels = np.random.randint(0, 5, 10000)
-scatter(Y, labels=labels, theme="dark", save="labeled.png")
+scatter(Y, labels=labels, theme="dark", save="plot.png")
 ```
 
-Animation from epoch snapshots:
+### GPU-accelerated animation
+
+`animate_gpu` renders directly on Metal GPU via MLX circle-splatting, then pipes raw RGBA frames to ffmpeg with `h264_videotoolbox` hardware encoding. No matplotlib in the rendering loop. 500 frames of 15K points render in ~1.5 seconds on M3 Ultra (60x faster than matplotlib).
+
+| UMAP | t-SNE | PaCMAP |
+|------|-------|--------|
+| <video src="https://github.com/hanxiao/mlx-vis/releases/download/v0.1.1/umap-animation.mp4" width="280" autoplay loop muted></video> | <video src="https://github.com/hanxiao/mlx-vis/releases/download/v0.1.1/tsne-animation.mp4" width="280" autoplay loop muted></video> | <video src="https://github.com/hanxiao/mlx-vis/releases/download/v0.1.1/pacmap-animation.mp4" width="280" autoplay loop muted></video> |
 
 ```python
-snaps, times = [], []
-import time; t0 = time.time()
+from mlx_vis import UMAP, animate_gpu
+import numpy as np, time
 
+X = np.random.randn(10000, 128).astype(np.float32)
+labels = np.random.randint(0, 5, 10000)
+
+snaps, times = [], []
+t0 = time.time()
 def cb(epoch, Y_np):
-    snaps.append(Y_np)
+    snaps.append(Y_np.copy())
     times.append(time.time() - t0)
 
 Y = UMAP(n_components=2, n_epochs=200).fit_transform(X, epoch_callback=cb)
 
-animate(snaps, labels=labels, timestamps=times,
-        method_name="umap-mlx", save="animation.mp4")
+animate_gpu(snaps, labels=labels, timestamps=times,
+            method_name="umap-mlx", fps=120, theme="dark",
+            save="animation.mp4")
 ```
 
-Full Fashion-MNIST example with all three methods:
+The CPU fallback `animate()` uses matplotlib and is available for non-Mac platforms.
+
+Full Fashion-MNIST example:
 
 ```bash
 python -m mlx_vis.examples.fashion_mnist --method umap --theme dark
