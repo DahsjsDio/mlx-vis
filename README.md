@@ -18,6 +18,8 @@ cd mlx-vis
 uv pip install .
 ```
 
+Requires `mlx >= 0.20.0` and `numpy >= 1.24.0`.
+
 ## Usage
 
 ```python
@@ -127,11 +129,6 @@ Full Fashion-MNIST example:
 python -m mlx_vis.examples.fashion_mnist --method umap --theme dark
 python -m mlx_vis.examples.fashion_mnist --method all
 ```
-
-## Dependencies
-
-- `mlx >= 0.20.0`
-- `numpy >= 1.24.0`
 
 ## License
 
