@@ -61,9 +61,9 @@ from mlx_vis.nndescent import NNDescent
 
 ## Visualization
 
-### Static plots
+All rendering runs on Metal GPU via MLX: coordinate mapping, circle-splatting, and color blending are fully vectorized MLX operations. Raw frames are piped to ffmpeg for PNG/video encoding. Zero matplotlib.
 
-Requires `matplotlib` (not installed by default).
+### Static plots
 
 ```python
 from mlx_vis import UMAP, scatter
@@ -76,9 +76,9 @@ Y = UMAP(n_components=2).fit_transform(X)
 scatter(Y, labels=labels, theme="dark", save="plot.png")
 ```
 
-### GPU-accelerated video rendering
+### Animation
 
-All rendering runs on Metal GPU via MLX: coordinate mapping, circle-splatting, and color blending are fully vectorized MLX operations. Raw RGBA frames are piped to ffmpeg with `h264_videotoolbox` hardware encoding. Zero CPU rendering, zero matplotlib. **500 frames of 15K points in 1.5 seconds** on M3 Ultra, 60x faster than matplotlib.
+Video frames are rendered on GPU and piped to ffmpeg with `h264_videotoolbox` hardware encoding. **500 frames of 15K points in 1.5 seconds** on M3 Ultra.
 
 **UMAP:**
 

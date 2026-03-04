@@ -71,58 +71,59 @@ def _resolve_colors(labels, colors, n_points, theme):
     return np.full((n_points, 4), [0.2, 0.4, 0.7, 1.0], dtype=np.float32)
 
 
-def scatter(Y, labels=None, theme="dark", colors=None, point_size=1.5,
-            alpha=0.6, title=None, figsize=(10, 10), save=None, dpi=150):
-    """Static scatter plot of 2D embedding.
+def scatter(Y, labels=None, theme="dark", colors=None, point_size=2,
+            alpha=0.6, title=None, save=None, width=1000, height=1000):
+    """Static scatter plot rendered on Metal GPU via MLX.
 
     Args:
         Y: (n, 2) array of embedding coordinates.
         labels: optional int array for coloring by class.
         theme: "dark" (black bg) or "light" (white bg).
         colors: custom RGBA array or matplotlib colormap name.
-        point_size: scatter marker size.
+        point_size: point radius in pixels.
         alpha: point transparency.
-        title: optional title string.
-        figsize: figure size tuple.
-        save: path to save PNG. None to skip.
-        dpi: output DPI.
-
-    Returns:
-        matplotlib Figure.
+        title: optional title string (ignored in GPU path).
+        save: path to save PNG.
+        width: image width in pixels.
+        height: image height in pixels.
     """
-    import matplotlib
-    matplotlib.use("Agg")
-    import matplotlib.pyplot as plt
+    import mlx.core as mx
+    from .render import render_frame
+    import subprocess
 
     Y = np.asarray(Y)
     c = _resolve_colors(labels, colors, len(Y), theme)
-    c = np.array(c, dtype=np.float64)
+    c = np.array(c, dtype=np.float32)
     c[:, 3] = alpha
 
-    bg = "black" if theme == "dark" else "white"
-    fg = "white" if theme == "dark" else "black"
-
-    fig, ax = plt.subplots(1, 1, figsize=figsize)
-    fig.set_facecolor(bg)
-    ax.set_facecolor(bg)
+    bg_val = 0.0 if theme == "dark" else 1.0
+    bg_color = mx.array([bg_val, bg_val, bg_val, 1.0], dtype=mx.float32)
 
     xlim, ylim = _get_square_lims(Y)
-    ax.set_xlim(*xlim)
-    ax.set_ylim(*ylim)
-    ax.set_aspect("equal")
-    ax.axis("off")
 
-    ax.scatter(Y[:, 0], Y[:, 1], s=point_size, c=c, edgecolors="none")
-
-    if title:
-        ax.set_title(title, color=fg, fontsize=14, pad=10, fontfamily="monospace")
-
-    fig.tight_layout(pad=0.5)
+    frame = render_frame(
+        mx.array(Y, dtype=mx.float32),
+        mx.array(c, dtype=mx.float32),
+        width, height, xlim, ylim,
+        point_radius=int(point_size),
+        bg_color=bg_color,
+    )
+    mx.eval(frame)
+    pixels = np.array(frame)
 
     if save:
-        fig.savefig(save, dpi=dpi, facecolor=bg, bbox_inches="tight")
+        # write raw RGBA to PNG via ffmpeg (no PIL/matplotlib dependency)
+        cmd = [
+            "ffmpeg", "-y", "-f", "rawvideo", "-pix_fmt", "rgba",
+            "-s", f"{width}x{height}", "-i", "pipe:",
+            "-frames:v", "1", save,
+        ]
+        proc = subprocess.run(cmd, input=pixels.tobytes(),
+                              capture_output=True, timeout=10)
+        if proc.returncode != 0:
+            raise RuntimeError(f"ffmpeg error: {proc.stderr.decode()}")
 
-    return fig
+    return pixels
 
 
 def animate(snapshots, labels=None, timestamps=None, method_name="",
