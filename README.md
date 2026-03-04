@@ -1,8 +1,8 @@
 # mlx-vis
 
-Pure MLX implementations of UMAP, t-SNE, PaCMAP, TriMap, and NNDescent for Apple Silicon. Metal GPU acceleration for both computation and video rendering. No scipy, no sklearn, no matplotlib.
+Pure MLX implementations of UMAP, t-SNE, PaCMAP, TriMap, DREAMS, and NNDescent for Apple Silicon. Metal GPU acceleration for both computation and video rendering. No scipy, no sklearn, no matplotlib.
 
-![Fashion-MNIST 70K on M3 Ultra. Top: dark theme, bottom: light theme. Left to right: UMAP, t-SNE, PaCMAP, TriMap.](comparison.png)
+![Fashion-MNIST 70K on M3 Ultra. Top: dark theme, bottom: light theme. Left to right: UMAP, t-SNE, PaCMAP, TriMap, DREAMS.](comparison.png)
 
 ## Install
 
@@ -24,7 +24,7 @@ Requires `mlx >= 0.20.0` and `numpy >= 1.24.0`.
 
 ```python
 import numpy as np
-from mlx_vis import UMAP, TSNE, PaCMAP, TriMap, NNDescent
+from mlx_vis import UMAP, TSNE, PaCMAP, TriMap, DREAMS, NNDescent
 
 X = np.random.randn(10000, 128).astype(np.float32)
 
@@ -40,6 +40,9 @@ Y = PaCMAP(n_components=2, n_neighbors=10).fit_transform(X)
 # TriMap
 Y = TriMap(n_components=2, n_iters=400).fit_transform(X)
 
+# DREAMS (t-SNE + PCA regularization)
+Y = DREAMS(n_components=2, lam=0.15).fit_transform(X)
+
 # NNDescent (approximate k-NN graph)
 indices, distances = NNDescent(k=15).build(X)
 ```
@@ -51,6 +54,7 @@ from mlx_vis.umap import UMAP
 from mlx_vis.tsne import TSNE
 from mlx_vis.pacmap import PaCMAP
 from mlx_vis.trimap import TriMap
+from mlx_vis.dreams import DREAMS
 from mlx_vis.nndescent import NNDescent
 ```
 
@@ -62,6 +66,7 @@ from mlx_vis.nndescent import NNDescent
 | t-SNE | `TSNE(n_components, perplexity, ...)` | `fit_transform(X)` | `np.ndarray (n, d)` |
 | PaCMAP | `PaCMAP(n_components, n_neighbors, ...)` | `fit_transform(X)` | `np.ndarray (n, d)` |
 | TriMap | `TriMap(n_components, n_iters, ...)` | `fit_transform(X)` | `np.ndarray (n, d)` |
+| DREAMS | `DREAMS(n_components, lam, ...)` | `fit_transform(X)` | `np.ndarray (n, d)` |
 | NNDescent | `NNDescent(k, n_iters, ...)` | `build(X)` | `(indices, distances)` |
 
 ## Visualization
@@ -101,14 +106,18 @@ https://github.com/user-attachments/assets/563c6a58-48e8-435d-b99d-5eafbb11be27
 
 https://github.com/user-attachments/assets/eea51acf-b8da-4da1-9b23-6322bf300275
 
+**DREAMS:**
+
+https://github.com/user-attachments/assets/e6a3bb52-95f4-46d0-9a8d-f7714e85a18f
+
 **Benchmark on Fashion-MNIST 70,000 x 784, M3 Ultra:**
 
-| | UMAP | t-SNE | PaCMAP | TriMap |
-|---|---|---|---|---|
-| Iterations | 500 | 500 | 450 | 500 |
-| Embedding | 3.5s | 3.9s | 2.4s | 2.8s |
-| GPU render (800 frames) | 2.1s | 1.9s | 1.8s | 1.9s |
-| Total | 5.6s | 5.8s | 4.2s | 4.7s |
+| | UMAP | t-SNE | PaCMAP | TriMap | DREAMS |
+|---|---|---|---|---|---|
+| Iterations | 500 | 500 | 450 | 500 | 500 |
+| Embedding | 3.5s | 3.9s | 2.4s | 2.8s | 4.0s |
+| GPU render (800 frames) | 2.1s | 1.9s | 1.8s | 1.9s | 1.9s |
+| Total | 5.6s | 5.8s | 4.2s | 4.7s | 5.9s |
 
 ```python
 from mlx_vis import UMAP, animate_gpu
