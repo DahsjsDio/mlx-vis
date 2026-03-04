@@ -2,7 +2,7 @@
 
 Pure MLX implementations of UMAP, t-SNE, PaCMAP, TriMap, and NNDescent for Apple Silicon. Metal GPU acceleration for both computation and video rendering. No scipy, no sklearn, no matplotlib.
 
-![Fashion-MNIST 70K, 500 iterations on M3 Ultra](comparison.png)
+![Fashion-MNIST 70K on M3 Ultra. Top: dark theme, bottom: light theme. Left to right: UMAP, t-SNE, PaCMAP, TriMap.](comparison.png)
 
 ## Install
 
@@ -50,6 +50,7 @@ Submodule imports also work:
 from mlx_vis.umap import UMAP
 from mlx_vis.tsne import TSNE
 from mlx_vis.pacmap import PaCMAP
+from mlx_vis.trimap import TriMap
 from mlx_vis.nndescent import NNDescent
 ```
 
@@ -70,14 +71,14 @@ All rendering runs on Metal GPU via MLX: coordinate mapping, circle-splatting, a
 ### Static plots
 
 ```python
-from mlx_vis import UMAP, scatter
+from mlx_vis import UMAP, scatter_gpu
 import numpy as np
 
 X = np.random.randn(10000, 128).astype(np.float32)
 labels = np.random.randint(0, 5, 10000)
 Y = UMAP(n_components=2).fit_transform(X)
 
-scatter(Y, labels=labels, theme="dark", save="plot.png")
+scatter_gpu(Y, labels=labels, theme="dark", save="plot.png")
 ```
 
 ### Animation
@@ -110,7 +111,7 @@ https://github.com/user-attachments/assets/eea51acf-b8da-4da1-9b23-6322bf300275
 | Total | 5.6s | 5.8s | 4.2s | 4.7s |
 
 ```python
-from mlx_vis import UMAP, animate
+from mlx_vis import UMAP, animate_gpu
 import numpy as np, time
 
 X = np.random.randn(10000, 128).astype(np.float32)
@@ -124,9 +125,9 @@ def cb(epoch, Y_np):
 
 Y = UMAP(n_components=2, n_epochs=200).fit_transform(X, epoch_callback=cb)
 
-animate(snaps, labels=labels, timestamps=times,
-        method_name="umap-mlx", fps=120, theme="dark",
-        save="animation.mp4")
+animate_gpu(snaps, labels=labels, timestamps=times,
+            method_name="umap-mlx", fps=120, theme="dark",
+            save="animation.mp4")
 ```
 
 Full Fashion-MNIST example:
