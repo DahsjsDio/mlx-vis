@@ -264,8 +264,9 @@ class TriMap:
         return triplets, weights.astype(np.float32)
 
 
+@mx.compile
 def _compute_gradient(Y, triplets, weights, n):
-    """Vectorized gradient computation over all triplets."""
+    """Vectorized gradient computation over all triplets (compiled)."""
     yi = Y[triplets[:, 0]]  # (T, d)
     yj = Y[triplets[:, 1]]  # (T, d)
     yk = Y[triplets[:, 2]]  # (T, d)

@@ -186,7 +186,7 @@ class UMAP:
     ) -> tuple[mx.array, mx.array, mx.array]:
         """Build fuzzy simplicial set on GPU."""
         k = self.n_neighbors
-        target = np.log2(k)
+        target = float(np.log2(k))
 
         knn_dists_mx = mx.array(knn_dists)
 
@@ -342,8 +342,9 @@ class UMAP:
             return mx.random.normal((n, self.n_components)) * 0.01
 
     @staticmethod
+    @mx.compile
     def _sgd_step(Y, ef, et, neg_from_idx, neg_to_idx, alpha_epoch, a, b):
-        """Single SGD step -- pure MLX, ready for mx.compile."""
+        """Single SGD step -- pure MLX, compiled."""
         # Positive forces (attract)
         y_from = Y[ef]
         y_to = Y[et]

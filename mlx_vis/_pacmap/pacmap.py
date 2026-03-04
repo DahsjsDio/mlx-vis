@@ -414,21 +414,20 @@ class PaCMAP:
             Y = Y - lr_t * m / (mx.sqrt(v) + 1e-7)
             return Y, m, v
         
-        # Don't compile - closures with scatter-add are tricky in mx.compile
-        step_with_mn_c = step_with_mn
-        step_no_mn_c = step_no_mn
+        step_with_mn_c = mx.compile(step_with_mn)
+        step_no_mn_c = mx.compile(step_no_mn)
         
         for itr in range(num_iters_total):
             if itr < phase1:
                 w_MN = (1.0 - itr / phase1) * w_MN_init + (itr / phase1) * 3.0
                 lr_t = lr * math.sqrt(1.0 - beta2 ** (itr + 1)) / (1.0 - beta1 ** (itr + 1))
-                Y, m, v = step_with_mn_c(Y, m, v, 2.0, w_MN, 1.0, lr_t)
+                Y, m, v = step_with_mn_c(Y, m, v, mx.array(2.0), mx.array(w_MN), mx.array(1.0), mx.array(lr_t))
             elif itr < phase1 + phase2:
                 lr_t = lr * math.sqrt(1.0 - beta2 ** (itr + 1)) / (1.0 - beta1 ** (itr + 1))
-                Y, m, v = step_with_mn_c(Y, m, v, 3.0, 3.0, 1.0, lr_t)
+                Y, m, v = step_with_mn_c(Y, m, v, mx.array(3.0), mx.array(3.0), mx.array(1.0), mx.array(lr_t))
             else:
                 lr_t = lr * math.sqrt(1.0 - beta2 ** (itr + 1)) / (1.0 - beta1 ** (itr + 1))
-                Y, m, v = step_no_mn_c(Y, m, v, 1.0, 1.0, lr_t)
+                Y, m, v = step_no_mn_c(Y, m, v, mx.array(1.0), mx.array(1.0), mx.array(lr_t))
             
             if epoch_callback is not None:
                 mx.eval(Y, m, v)

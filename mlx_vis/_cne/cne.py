@@ -204,6 +204,103 @@ class CNE:
         mask = edges[:, 0] != edges[:, 1]
         return edges[mask]
 
+    @staticmethod
+    @mx.compile
+    def _infonce_grad(Y, ei, ej, neg_indices):
+        """Compiled InfoNCE gradient computation."""
+        yi = Y[ei]
+        yj = Y[ej]
+        yk = Y[neg_indices]
+
+        diff_pos = yi - yj
+        d_pos = 1.0 + mx.sum(diff_pos * diff_pos, axis=-1)
+        s_pos = 1.0 / d_pos
+
+        diff_neg = yi[:, None, :] - yk
+        d_neg = 1.0 + mx.sum(diff_neg * diff_neg, axis=-1)
+        s_neg = 1.0 / d_neg
+
+        S_neg = mx.sum(s_neg, axis=1)
+        Z = s_pos + S_neg
+        w_pos = 1.0 - s_pos / Z
+        w_neg = s_neg / Z[:, None]
+
+        g_attr = w_pos[:, None] * 2.0 * s_pos[:, None] * diff_pos
+        g_rep = -mx.sum(
+            w_neg[:, :, None] * 2.0 * s_neg[:, :, None] * diff_neg, axis=1,
+        )
+
+        grad_per_edge = g_attr + g_rep
+        neg_grad = w_neg[:, :, None] * 2.0 * s_neg[:, :, None] * diff_neg
+
+        grad = mx.zeros_like(Y)
+        grad = grad.at[ei].add(grad_per_edge)
+        grad = grad.at[ej].add(-g_attr)
+        grad = grad.at[neg_indices.reshape(-1)].add(neg_grad.reshape(-1, grad.shape[1]))
+
+        return grad
+
+    @staticmethod
+    @mx.compile
+    def _nce_grad(Y, ei, ej, neg_indices, inv_m):
+        """Compiled NCE gradient computation."""
+        yi = Y[ei]
+        yj = Y[ej]
+        yk = Y[neg_indices]
+
+        diff_pos = yi - yj
+        d_pos = 1.0 + mx.sum(diff_pos * diff_pos, axis=-1)
+        s_pos = 1.0 / d_pos
+
+        diff_neg = yi[:, None, :] - yk
+        d_neg = 1.0 + mx.sum(diff_neg * diff_neg, axis=-1)
+        s_neg = 1.0 / d_neg
+
+        g_attr = (2.0 * inv_m * s_pos / (s_pos + inv_m))[:, None] * diff_pos
+        g_rep = mx.sum(
+            -2.0 * (s_neg * s_neg / (s_neg + inv_m))[:, :, None] * diff_neg,
+            axis=1,
+        )
+
+        neg_grad = 2.0 * (s_neg * s_neg / (s_neg + inv_m))[:, :, None] * diff_neg
+
+        grad = mx.zeros_like(Y)
+        grad = grad.at[ei].add(g_attr + g_rep)
+        grad = grad.at[ej].add(-g_attr)
+        grad = grad.at[neg_indices.reshape(-1)].add(neg_grad.reshape(-1, grad.shape[1]))
+
+        return grad
+
+    @staticmethod
+    @mx.compile
+    def _neg_grad(Y, ei, ej, neg_indices):
+        """Compiled NEG gradient computation."""
+        yi = Y[ei]
+        yj = Y[ej]
+        yk = Y[neg_indices]
+
+        diff_pos = yi - yj
+        d_pos = 1.0 + mx.sum(diff_pos * diff_pos, axis=-1)
+        s_pos = 1.0 / d_pos
+
+        diff_neg = yi[:, None, :] - yk
+        d_neg = 1.0 + mx.sum(diff_neg * diff_neg, axis=-1)
+        s_neg = 1.0 / d_neg
+
+        g_attr = (2.0 * s_pos)[:, None] * diff_pos
+        one_minus_s = mx.maximum(1.0 - s_neg, 1e-8)
+        w_neg = s_neg * s_neg / one_minus_s
+        g_rep = mx.sum(-2.0 * w_neg[:, :, None] * diff_neg, axis=1)
+
+        neg_grad = 2.0 * w_neg[:, :, None] * diff_neg
+
+        grad = mx.zeros_like(Y)
+        grad = grad.at[ei].add(g_attr + g_rep)
+        grad = grad.at[ej].add(-g_attr)
+        grad = grad.at[neg_indices.reshape(-1)].add(neg_grad.reshape(-1, grad.shape[1]))
+
+        return grad
+
     def _optimize(self, Y, edges_mx, n, n_edges, batch_size, epoch_callback):
         """Adam optimization with contrastive loss."""
         m = mx.zeros_like(Y)
@@ -211,7 +308,15 @@ class CNE:
         beta1, beta2, eps = 0.9, 0.999, 1e-8
         lr = self.learning_rate
         n_neg = self.n_negatives
-        d = self.n_components
+
+        # Select compiled gradient function
+        if self.loss == "infonce":
+            grad_fn = self._infonce_grad
+        elif self.loss == "nce":
+            inv_m_mx = mx.array(1.0 / n_neg)
+            grad_fn = None  # handled separately due to extra param
+        else:
+            grad_fn = self._neg_grad
 
         if self.verbose:
             print("Starting optimization...")
@@ -224,84 +329,17 @@ class CNE:
             else:
                 batch_edges = edges_mx
 
-            E = batch_edges.shape[0]
-            ei = batch_edges[:, 0]  # (E,)
-            ej = batch_edges[:, 1]  # (E,)
+            ei = batch_edges[:, 0]
+            ej = batch_edges[:, 1]
 
             # Sample negatives uniformly
-            neg_indices = mx.random.randint(0, n, (E, n_neg))  # (E, m)
+            neg_indices = mx.random.randint(0, n, (batch_edges.shape[0], n_neg))
 
-            # Gather embeddings
-            yi = Y[ei]               # (E, d)
-            yj = Y[ej]               # (E, d)
-            yk = Y[neg_indices]       # (E, m, d)
-
-            # Cauchy similarities
-            diff_pos = yi - yj                                      # (E, d)
-            d_pos = 1.0 + mx.sum(diff_pos * diff_pos, axis=-1)      # (E,)
-            s_pos = 1.0 / d_pos                                     # (E,)
-
-            diff_neg = yi[:, None, :] - yk                           # (E, m, d)
-            d_neg = 1.0 + mx.sum(diff_neg * diff_neg, axis=-1)      # (E, m)
-            s_neg = 1.0 / d_neg                                     # (E, m)
-
-            # Compute gradients based on loss type
-            grad = mx.zeros_like(Y)
-
-            if self.loss == "infonce":
-                # L = -log(s_pos / (s_pos + sum(s_neg)))
-                # dL/dyi = w_pos*2*s_pos*(yi-yj) - sum_k w_neg_k*2*s_neg_k*(yi-yk)
-                S_neg = mx.sum(s_neg, axis=1)          # (E,)
-                Z = s_pos + S_neg                       # (E,)
-                w_pos = 1.0 - s_pos / Z                 # (E,)
-                w_neg = s_neg / Z[:, None]              # (E, m)
-
-                # Attractive gradient: points away from yj (steepest loss increase)
-                g_attr = w_pos[:, None] * 2.0 * s_pos[:, None] * diff_pos   # (E, d)
-                # Repulsive gradient: points toward yk (steepest loss increase)
-                g_rep = -mx.sum(
-                    w_neg[:, :, None] * 2.0 * s_neg[:, :, None] * diff_neg,
-                    axis=1,
-                )  # (E, d)
-
-            elif self.loss == "nce":
-                # L = -log(s/(s+c)) - sum log(c/(s_k+c)), c = 1/m
-                inv_m = 1.0 / n_neg
-                # dL/dyi_pos = 2*c*s/(s+c) * (yi-yj)
-                g_attr = (2.0 * inv_m * s_pos / (s_pos + inv_m))[:, None] * diff_pos  # (E, d)
-                # dL/dyi_neg = sum_k -2*s_k^2/(s_k+c) * (yi-yk)
-                g_rep = mx.sum(
-                    -2.0 * (s_neg * s_neg / (s_neg + inv_m))[:, :, None] * diff_neg,
-                    axis=1,
-                )  # (E, d)
-
-            else:  # neg
-                # L = -log(s_pos) - sum log(1 - s_neg_k)
-                # dL/dyi_pos = 2*s*(yi-yj)
-                g_attr = (2.0 * s_pos)[:, None] * diff_pos  # (E, d)
-                # dL/dyi_neg = sum_k -2*s_k^2/(1-s_k) * (yi-yk)
-                one_minus_s = mx.maximum(1.0 - s_neg, 1e-8)  # (E, m)
-                w_neg = s_neg * s_neg / one_minus_s  # (E, m)
-                g_rep = mx.sum(
-                    -2.0 * w_neg[:, :, None] * diff_neg,
-                    axis=1,
-                )  # (E, d)
-
-            grad_per_edge = g_attr + g_rep  # (E, d)
-
-            # Scatter-add: dL/dyi for source nodes
-            grad = grad.at[ei].add(grad_per_edge)
-            # dL/dyj = -g_attr for all losses (only pos term depends on yj)
-            grad = grad.at[ej].add(-g_attr)
-
-            # dL/dyk: per-negative gradient (only neg terms depend on yk)
-            if self.loss == "infonce":
-                neg_grad = w_neg[:, :, None] * 2.0 * s_neg[:, :, None] * diff_neg  # (E, m, d)
-            elif self.loss == "nce":
-                neg_grad = 2.0 * (s_neg * s_neg / (s_neg + inv_m))[:, :, None] * diff_neg  # (E, m, d)
-            else:  # neg
-                neg_grad = 2.0 * w_neg[:, :, None] * diff_neg  # (E, m, d)
-            grad = grad.at[neg_indices.reshape(-1)].add(neg_grad.reshape(-1, d))
+            # Compiled gradient computation
+            if self.loss == "nce":
+                grad = self._nce_grad(Y, ei, ej, neg_indices, inv_m_mx)
+            else:
+                grad = grad_fn(Y, ei, ej, neg_indices)
 
             # Scale gradient for mini-batch
             if batch_size < n_edges:
