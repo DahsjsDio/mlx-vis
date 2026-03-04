@@ -78,9 +78,17 @@ scatter(Y, labels=labels, theme="dark", save="plot.png")
 
 `animate_gpu` renders directly on Metal GPU via MLX circle-splatting, then pipes raw RGBA frames to ffmpeg with `h264_videotoolbox` hardware encoding. No matplotlib in the rendering loop. 500 frames of 15K points render in ~1.5 seconds on M3 Ultra (60x faster than matplotlib).
 
-| UMAP | t-SNE | PaCMAP |
-|------|-------|--------|
-| <video src="https://github.com/hanxiao/mlx-vis/releases/download/v0.1.1/umap-animation.mp4" width="280" autoplay loop muted></video> | <video src="https://github.com/hanxiao/mlx-vis/releases/download/v0.1.1/tsne-animation.mp4" width="280" autoplay loop muted></video> | <video src="https://github.com/hanxiao/mlx-vis/releases/download/v0.1.1/pacmap-animation.mp4" width="280" autoplay loop muted></video> |
+**UMAP:**
+
+https://github.com/hanxiao/mlx-vis/releases/download/v0.1.1/umap-animation.mp4
+
+**t-SNE:**
+
+https://github.com/hanxiao/mlx-vis/releases/download/v0.1.1/tsne-animation.mp4
+
+**PaCMAP:**
+
+https://github.com/hanxiao/mlx-vis/releases/download/v0.1.1/pacmap-animation.mp4
 
 **Benchmark on Fashion-MNIST 70,000 x 784, M3 Ultra:**
 
