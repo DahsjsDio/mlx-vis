@@ -248,12 +248,12 @@ def animate_gpu(snapshots, labels=None, timestamps=None, method_name="",
     Returns total frames rendered.
     """
     import subprocess
-    from mlx_vis.render import render_frame
+    import mlx.core as mx
+    from mlx_vis.render import _render_frame_mlx, _circle_template, _TEMPLATE_CACHE
 
-    snapshots_np = [np.asarray(s) for s in snapshots]
+    snapshots_np = [np.asarray(s, dtype=np.float32) for s in snapshots]
     n_snap = len(snapshots_np)
     n_points = len(snapshots_np[0])
-    n_epochs = n_snap - 1
 
     c = _resolve_colors(labels, colors, n_points, theme)
     c = np.array(c, dtype=np.float32)
@@ -262,13 +262,28 @@ def animate_gpu(snapshots, labels=None, timestamps=None, method_name="",
     xlim, ylim = _get_square_lims(snapshots_np[-1])
 
     bg_val = 0.0 if theme == "dark" else 1.0
-    bg = np.array([bg_val, bg_val, bg_val, 1.0], dtype=np.float32)
 
     point_radius = max(1.0, point_size)
 
     init_f = int(init_hold * fps)
     hold_f = int(end_hold * fps)
     total_f = init_f + n_snap + hold_f
+
+    # pre-convert constant inputs to mx.array once (avoid per-frame conversion)
+    colors_mx = mx.array(c)
+    bg_mx = mx.array([bg_val, bg_val, bg_val, 1.0], dtype=mx.float32)
+    xmin, xmax = float(xlim[0]), float(xlim[1])
+    ymin, ymax = float(ylim[0]), float(ylim[1])
+
+    rk = round(point_radius * 10)
+    if rk not in _TEMPLATE_CACHE:
+        _TEMPLATE_CACHE[rk] = _circle_template(point_radius)
+    offsets, weights = _TEMPLATE_CACHE[rk]
+
+    def _render(idx):
+        Y_mx = mx.array(snapshots_np[idx])
+        return _render_frame_mlx(Y_mx, colors_mx, offsets, weights,
+                                 width, height, xmin, xmax, ymin, ymax, bg_mx)
 
     ffmpeg_cmd = [
         "ffmpeg", "-y",
@@ -284,21 +299,42 @@ def animate_gpu(snapshots, labels=None, timestamps=None, method_name="",
     proc = subprocess.Popen(ffmpeg_cmd, stdin=subprocess.PIPE,
                             stdout=subprocess.DEVNULL, stderr=subprocess.DEVNULL)
 
-    for frame_i in range(total_f):
-        if frame_i < init_f:
-            idx = 0
-        elif frame_i < init_f + n_snap:
-            idx = frame_i - init_f
-        else:
-            idx = n_snap - 1
+    # init hold: render once, reuse bytes for all hold frames
+    init_buf = _render(0)
+    mx.eval(init_buf)
+    init_bytes = np.array(init_buf).tobytes()
+    for _ in range(init_f):
+        proc.stdin.write(init_bytes)
 
-        frame = render_frame(snapshots_np[idx], c, width, height,
-                             xlim, ylim, point_radius=point_radius,
-                             bg_color=bg)
-        proc.stdin.write(frame.tobytes())
+    # pipeline: render frame N+1 on GPU while piping frame N to ffmpeg
+    # first snapshot frame already rendered above; write it
+    proc.stdin.write(init_bytes)
 
-        if (frame_i + 1) % 100 == 0 or frame_i == total_f - 1:
-            print(f"  frame {frame_i + 1}/{total_f}")
+    if n_snap > 1:
+        frame = _render(1)
+        mx.async_eval(frame)
+        for i in range(2, n_snap):
+            next_frame = _render(i)
+            mx.async_eval(next_frame)
+            mx.eval(frame)
+            proc.stdin.write(np.array(frame).tobytes())
+            frame = next_frame
+            done = init_f + i
+            if done % 100 == 0:
+                print(f"  frame {done}/{total_f}")
+
+        # last changing frame
+        mx.eval(frame)
+        last_bytes = np.array(frame).tobytes()
+        proc.stdin.write(last_bytes)
+    else:
+        last_bytes = init_bytes
+
+    # end hold: reuse last frame bytes
+    for _ in range(hold_f):
+        proc.stdin.write(last_bytes)
+
+    print(f"  frame {total_f}/{total_f}")
 
     proc.stdin.close()
     proc.wait()
