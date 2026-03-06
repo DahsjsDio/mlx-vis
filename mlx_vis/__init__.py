@@ -1,6 +1,6 @@
 """mlx-vis: unified dimensionality reduction on Apple Silicon."""
 
-__version__ = "0.1.0"
+__version__ = "0.2.0"
 
 from mlx_vis._umap.umap import UMAP
 from mlx_vis._tsne.tsne import TSNE
