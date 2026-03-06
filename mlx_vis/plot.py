@@ -427,10 +427,11 @@ def morph_gpu(Y_source, Y_target, labels=None, n_steps=300,
     hold_f = int(end_hold * fps)
     total_f = init_f + (n_steps + 1) + hold_f
 
-    def _render_interp(t):
-        """Interpolate and render on GPU."""
-        t_mx = mx.array(t, dtype=mx.float32)
-        Y = (1.0 - t_mx) * X0_mx + t_mx * X1_mx
+    # Precompute step delta on GPU (avoids per-frame scalar creation)
+    delta = (X1_mx - X0_mx) / n_steps if n_steps > 0 else mx.zeros_like(X0_mx)
+    mx.eval(delta)
+
+    def _render_at(Y):
         return _render_frame_mlx(Y, colors_mx, offsets, weights,
                                  width, height, xmin, xmax, ymin, ymax, bg_mx)
 
@@ -449,21 +450,23 @@ def morph_gpu(Y_source, Y_target, labels=None, n_steps=300,
                             stdout=subprocess.DEVNULL, stderr=subprocess.DEVNULL)
 
     # Init hold
-    frame0 = _render_interp(0.0)
+    Y_cur = X0_mx
+    frame0 = _render_at(Y_cur)
     mx.eval(frame0)
     buf0 = np.array(frame0).tobytes()
     for _ in range(init_f):
         proc.stdin.write(buf0)
 
-    # Interpolation frames with GPU pipeline
+    # Interpolation frames with GPU pipeline: Y += delta each step
     proc.stdin.write(buf0)  # step 0
     if n_steps > 0:
-        frame = _render_interp(1.0 / n_steps)
+        Y_cur = Y_cur + delta
+        frame = _render_at(Y_cur)
         mx.async_eval(frame)
 
         for step in range(2, n_steps + 1):
-            t = step / n_steps
-            next_frame = _render_interp(t)
+            Y_cur = Y_cur + delta
+            next_frame = _render_at(Y_cur)
             mx.async_eval(next_frame)
             mx.eval(frame)
             proc.stdin.write(np.array(frame).tobytes())

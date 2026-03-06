@@ -12,3 +12,4 @@ uv.lock
 *.mp4
 gen_readme_*.py
 paper/
+data/
