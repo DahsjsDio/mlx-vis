@@ -43,3 +43,6 @@ Issues = "https://github.com/hanxiao/mlx-vis/issues"
 
 [tool.setuptools.packages.find]
 include = ["mlx_vis*"]
+
+[dependency-groups]
+dev = []
