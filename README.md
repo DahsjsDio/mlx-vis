@@ -63,6 +63,12 @@ Y = CNE(n_components=2, loss="infonce").fit_transform(X)
 
 # NNDescent (approximate k-NN graph)
 indices, distances = NNDescent(k=15).build(X)
+
+# KNN method selection (all algorithms support this)
+# "auto" (default): brute-force for n≤20K, NNDescent for larger
+# "brute": exact brute-force on GPU
+# "nndescent": approximate NNDescent
+Y = UMAP(knn_method="nndescent").fit_transform(X)
 ```
 
 Per-module imports also work:
